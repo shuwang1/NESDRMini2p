@@ -4,9 +4,10 @@
 %> @author Shu Wang
 %> @param filename
 %> 
+%
 %> Refference: Some Measurements on E4000 and R820 Tuners 
 %> http://f6fvy.free.fr/rtl_sdr/Some_Measurements_on_E4000_and_R820_Tuners.pdf
-%
+%>
 
 close all ;
 clear all ;
@@ -20,7 +21,7 @@ Gps.Rf.L1Freq_Hz        = 1575.42e6 ;
 Gps.Rf.DcFreq_Hz        = 0 ;
 Gps.Rf.CenterFreq_Hz    = Gps.Rf.L1Freq_Hz - Gps.Rf.DcFreq_Hz ;
 Gps.Rf.EnableTunerAGC   = false;
-Gps.Rf.TunerGain_dB     = 48 ; %RF gain max is 49 dB. [Reference]
+Gps.Rf.TunerGain_dB     = 48 ;  %% RF Gain max @ 49dB for R820T. 
 Gps.Rf.L1Bandwidth_Hz   = 1.023e6 ;
 Gps.Rf.OversampleRate   = 1 ;
 Gps.Rf.SampleFreq_Hz    = 2.728e6 ;
@@ -67,8 +68,8 @@ Gps.Analyzer.rfSpectrum = dsp.SpectrumAnalyzer( ...
 toc
 
 Gps.Rf.initalizationTime_s = 600 ;
+Gps.Rf.stopTime_s          = Gps.Rf.SamplesPerFrame / Gps.Rf.SampleFreq_Hz * 8 
 Gps.Rf.radioFrameTime_s    = Gps.Rf.SamplesPerFrame / Gps.Rf.SampleFreq_Hz ;
-Gps.Rf.stopTime_s          = Gps.Rf.radioFrameTime_s * 8 
 
 %% Stream Processing Loop
 %
@@ -120,8 +121,8 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
     Gps.Rf.iqData      = resample( double([real( Gps.Rf.cData ) imag( Gps.Rf.cData )]), 3, 2 ) ;
     Gps.Rf.iqDataLen   = length( Gps.Rf.iqData ) ;
 
-    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.rfd' ], Gps.Rf.cData ) ;
-    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.inq' ], Gps.Rf.iqData, '\t' ) ;
+    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '.rfd' ], Gps.Rf.cData ) ;
+    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '.inq' ], Gps.Rf.iqData, '\t' ) ;
     
     toc
     
@@ -141,10 +142,10 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
     %%
     %> remove DC if there is ANY. Most likely this is unecessary.
     %>
-    if( Gps.Rf.ADC.removeDC )
+    if( true == Gps.Rf.ADC.removeDC )
         Gps.Rf.iqData(:, 1) = Gps.Rf.iqData(:, 1) - Gps.Rf.signal.mean(1) ;
         Gps.Rf.iqData(:, 2) = Gps.Rf.iqData(:, 2) - Gps.Rf.signal.mean(2) ;
-                  disp( [' Gps.Rf.ADC.removeDC == TRUE: I_dc = ' Gps.Rf.signal.mean(1) ', Q_dc = ' Gps.Rf.signal.mean(2) ] ) ;      
+                disp( [' Gps.Rf.ADC.removeDC == TRUE: I_dc = ' Gps.Rf.signal.mean(1) ', Q_dc = ' Gps.Rf.signal.mean(2) ] ) ;
     end
 
     %%
@@ -164,8 +165,8 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
     %>
 
     if( false == Gps.Rf.ADC.fixed )      
-        Gps.Rf.ADC.threshold = Gps.Rf.signal.std 
-                disp( [' Gps.Rf.ADC.fixed == FALSE : Sigma_I = ' Gps.Rf.signal.std(1) ', Sigma_Q = ' Gps.Rf.signal.std(2) ] ) ;        
+        Gps.Rf.ADC.threshold = Gps.Rf.signal.std;
+                disp( [' Gps.Rf.ADC.fixed == FALSE : Sigma_I = ' Gps.Rf.signal.std(1) ', Sigma_Q = ' Gps.Rf.signal.std(2) ] ) ;
     end
 
     Gps.Rf.ADC.threshold
@@ -243,30 +244,28 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
 
     toc
 
-    Gps.Rf.piqFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.piq' ] ;
+    Gps.Rf.piqFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '.piq' ] ;
     Gps.Rf.permission    = 'a' ;
     Gps.Rf.machinefmt    = 'n' ;
-    disp( ['Start writing to ' Gps.Rf.piqFilename ] ) ;
     Gps.Rf.piqFid        = fopen( Gps.Rf.piqFilename, Gps.Rf.permission, Gps.Rf.machinefmt ) ;   
+
     fwrite( Gps.Rf.piqFid, Gps.Rf.piqData, 'uint8' ) ;
     fclose( Gps.Rf.piqFid ) ;
-    disp( ['Finish writing to ' Gps.Rf.piqFilename ] ) ;    
 
-    Gps.Rf.adcFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.bin' ] ;
+    Gps.Rf.adcFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '.bin' ] ;
     Gps.Rf.permission    = 'a' ;
     Gps.Rf.machinefmt    = 'n' ;
-    disp( ['Start writing to ' Gps.Rf.adcFilename ] ) ;
     Gps.Rf.adcFid        = fopen( Gps.Rf.adcFilename, Gps.Rf.permission, Gps.Rf.machinefmt ) ;   
+
     fwrite( Gps.Rf.adcFid, Gps.Rf.adcData, 'int8' ) ;
     fclose( Gps.Rf.adcFid ) ;
-    disp( ['Finish writing to ' Gps.Rf.adcFilename ] ) ;    
     
 else
     
     [ status, cmdout ]                        = unix( 'ls -1 -t *.bin', '-echo' ) ;
-    [ Gps.Data.fileList, Gps.Data.fileCount ] = textscan(cmdout, '%s') ;   
+    [ Gps.Data.fileList, Gps.Data.fileCount ] = textscan(cmdout, '%s') ;
+    
     Gps.Rf.adcFilename  = char( Gps.Data.fileList{1,1}(1,1) )
-    disp( ['No SDR Hardware is found and connected. Use ' Gps.Rf.adcFilename ' instead.' ] ) ;  
     
 end
 

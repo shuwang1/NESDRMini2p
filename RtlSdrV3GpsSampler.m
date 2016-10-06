@@ -20,7 +20,7 @@ Gps.Rf.L1Freq_Hz        = 1575.42e6 ;
 Gps.Rf.DcFreq_Hz        = 0 ;
 Gps.Rf.CenterFreq_Hz    = Gps.Rf.L1Freq_Hz - Gps.Rf.DcFreq_Hz ;
 Gps.Rf.EnableTunerAGC   = false;
-Gps.Rf.TunerGain_dB     = 48 ; %RF gain max is 49 dB. [Reference]
+Gps.Rf.TunerGain_dB     = 48 ;  %RF gain max is 49 dB. [Reference]
 Gps.Rf.L1Bandwidth_Hz   = 1.023e6 ;
 Gps.Rf.OversampleRate   = 1 ;
 Gps.Rf.SampleFreq_Hz    = 2.728e6 ;
@@ -68,7 +68,7 @@ toc
 
 Gps.Rf.initalizationTime_s = 600 ;
 Gps.Rf.radioFrameTime_s    = Gps.Rf.SamplesPerFrame / Gps.Rf.SampleFreq_Hz ;
-Gps.Rf.stopTime_s          = Gps.Rf.radioFrameTime_s * 8 
+Gps.Rf.stopTime_s          = Gps.Rf.radioFrameTime_s * 8 ;
 
 %% Stream Processing Loop
 %
@@ -101,7 +101,7 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
         % Get baseband samples from RTL-SDR radio
         [ rfBuff, ~ ] = step( Gps.Rf.radio );  % no 'len' output needed for blocking operation
         
-        assert( length( rfBuff ) == Gps.Rf.SamplesPerFrame, 'Not enough RF samples come out' ) ;
+        assert( length( rfBuff ) == Gps.Rf.SamplesPerFrame, '! Not enough RF samples come out' ) ;
 
         Gps.Rf.cData( (1:Gps.Rf.SamplesPerFrame) + Gps.Rf.SamplesPerFrame *  frameCount, 1 ) = rfBuff - mean( rfBuff );
         
@@ -114,14 +114,18 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
     % Release the audio and RTL-SDR resources.
     release( Gps.Rf.radio ) ;
     
-    Gps.timeStamp = num2str( round( now * 1e4 ) ) ; 
+    Gps.timeStamp = num2str( round( now * 1.0e4 ) ) ; 
+    disp( ['$ The time-stamp of the generated data files,' Gps.timeStamp '_*.*, is ' datestr( str2num( Gps.timeStamp ) /1.0e4 ) ] ) ;
 
     Gps.Rf.rfDataLen   = length( Gps.Rf.cData ) ;
     Gps.Rf.iqData      = resample( double([real( Gps.Rf.cData ) imag( Gps.Rf.cData )]), 3, 2 ) ;
     Gps.Rf.iqDataLen   = length( Gps.Rf.iqData ) ;
 
-    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.rfd' ], Gps.Rf.cData ) ;
-    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.inq' ], Gps.Rf.iqData, '\t' ) ;
+    disp( '$ Start saving GPS RF signal samples' ) ;
+    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Rtl_F' num2str( Gps.Rf.DcFreq_Hz ) '.rfd' ], Gps.Rf.cData ) ;
+    dlmwrite( [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Rtl_F' num2str( Gps.Rf.DcFreq_Hz ) '.inq' ], Gps.Rf.iqData, '\t' ) ;
+    disp( '$ Finish saving GPS RF signal samples' ) ;
+
     
     toc
     
@@ -141,10 +145,11 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
     %%
     %> remove DC if there is ANY. Most likely this is unecessary.
     %>
-    if( Gps.Rf.ADC.removeDC )
+    if( true == Gps.Rf.ADC.removeDC )
         Gps.Rf.iqData(:, 1) = Gps.Rf.iqData(:, 1) - Gps.Rf.signal.mean(1) ;
         Gps.Rf.iqData(:, 2) = Gps.Rf.iqData(:, 2) - Gps.Rf.signal.mean(2) ;
-                  disp( [' Gps.Rf.ADC.removeDC == TRUE: I_dc = ' Gps.Rf.signal.mean(1) ', Q_dc = ' Gps.Rf.signal.mean(2) ] ) ;      
+                disp( ['$ Gps.Rf.ADC.removeDC == TRUE: I_dc = ' num2str( Gps.Rf.signal.mean(1) ) ...
+                                                ', Q_dc = ' num2str( Gps.Rf.signal.mean(2) ) ] ) ;
     end
 
     %%
@@ -164,8 +169,9 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
     %>
 
     if( false == Gps.Rf.ADC.fixed )      
-        Gps.Rf.ADC.threshold = Gps.Rf.signal.std 
-                disp( [' Gps.Rf.ADC.fixed == FALSE : Sigma_I = ' Gps.Rf.signal.std(1) ', Sigma_Q = ' Gps.Rf.signal.std(2) ] ) ;        
+        Gps.Rf.ADC.threshold = Gps.Rf.signal.std;
+                disp( ['$ Gps.Rf.ADC.fixed == FALSE : Sigma_I = ' num2str( Gps.Rf.signal.std(1) ) ...
+                                                ', Sigma_Q = ' num2str( Gps.Rf.signal.std(2) ) ] ) ;
     end
 
     Gps.Rf.ADC.threshold
@@ -243,38 +249,39 @@ if ~isempty( sdrinfo( Gps.Rf.radio.RadioAddress ) )
 
     toc
 
-    Gps.Rf.piqFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.piq' ] ;
+    Gps.Rf.adcFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Rtl_F' num2str( Gps.Rf.DcFreq_Hz ) '.bin' ] ;
     Gps.Rf.permission    = 'a' ;
     Gps.Rf.machinefmt    = 'n' ;
-    disp( ['Start writing to ' Gps.Rf.piqFilename ] ) ;
-    Gps.Rf.piqFid        = fopen( Gps.Rf.piqFilename, Gps.Rf.permission, Gps.Rf.machinefmt ) ;   
-    fwrite( Gps.Rf.piqFid, Gps.Rf.piqData, 'uint8' ) ;
-    fclose( Gps.Rf.piqFid ) ;
-    disp( ['Finish writing to ' Gps.Rf.piqFilename ] ) ;    
-
-    Gps.Rf.adcFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Noo_F' Gps.Rf.DcFreq_Hz '.bin' ] ;
-    Gps.Rf.permission    = 'a' ;
-    Gps.Rf.machinefmt    = 'n' ;
-    disp( ['Start writing to ' Gps.Rf.adcFilename ] ) ;
+    disp( ['$ Start writing to ' Gps.Rf.adcFilename ] ) ;
     Gps.Rf.adcFid        = fopen( Gps.Rf.adcFilename, Gps.Rf.permission, Gps.Rf.machinefmt ) ;   
     fwrite( Gps.Rf.adcFid, Gps.Rf.adcData, 'int8' ) ;
     fclose( Gps.Rf.adcFid ) ;
-    disp( ['Finish writing to ' Gps.Rf.adcFilename ] ) ;    
+    disp( ['$ Finish writing to ' Gps.Rf.adcFilename ] ) ;    
+    
+    Gps.Rf.piqFilename   = [ Gps.timeStamp '_' Gps.Rf.sdrHwInfo.TunerName '_Rtl_F' num2str( Gps.Rf.DcFreq_Hz ) '.piq' ] ;
+    Gps.Rf.permission    = 'a' ;
+    Gps.Rf.machinefmt    = 'n' ;
+    disp( ['$ Start writing to ' Gps.Rf.piqFilename ] ) ;
+    Gps.Rf.piqFid        = fopen( Gps.Rf.piqFilename, Gps.Rf.permission, Gps.Rf.machinefmt ) ;   
+    fwrite( Gps.Rf.piqFid, Gps.Rf.piqData, 'uint8' ) ;
+    fclose( Gps.Rf.piqFid ) ;
+    disp( ['$ Finish writing to ' Gps.Rf.piqFilename ] ) ;    
+
     
 else
-    
     [ status, cmdout ]                        = unix( 'ls -1 -t *.bin', '-echo' ) ;
-    [ Gps.Data.fileList, Gps.Data.fileCount ] = textscan(cmdout, '%s') ;   
+    [ Gps.Data.fileList, Gps.Data.fileCount ] = textscan(cmdout, '%s') ;
     Gps.Rf.adcFilename  = char( Gps.Data.fileList{1,1}(1,1) )
-    disp( ['No SDR Hardware is found and connected. Use ' Gps.Rf.adcFilename ' instead.' ] ) ;  
+    disp( ['$ No SDR Hardware is found and connected. Use ' Gps.Rf.adcFilename ' instead.' ] ) ;    
     
 end
 
 toc
 
+Gps.Search.astFilename    = 'RtlSdrV3Gps.ast' ;
 Gps.Search.freqBias_Hz    = Gps.Rf.DcFreq_Hz ;
 Gps.Search.coherentMode   = 18 ;
-Gps.Search.nonCoherentCnt = 40 ;
+Gps.Search.nonCoherentCnt = 20 ;
 Gps.Search.coherentIntvl  = 20 ;
 Gps.Search.window_bin     = 250 ;
 % Gps.Search.assistFilename = [Gps.filename '.asi'] ;
@@ -286,6 +293,7 @@ Gps.Search.window_bin     = 250 ;
 %> file as its input. 
 %
 command = ['./GpsSearcher2 ' Gps.Rf.adcFilename ...
+            ' --assist '  Gps.Search.astFilename ...
             ' --fo ' int2str( Gps.Search.freqBias_Hz ) ...
             ' --ct ' int2str( Gps.Search.coherentMode ) ...
             ' --ci ' int2str( Gps.Search.coherentIntvl ) ...
